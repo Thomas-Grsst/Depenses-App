@@ -202,6 +202,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           : const SizedBox(width: 44),
     ]);
 
+    // Aperçu de l'arrondi à l'euro supérieur (dépenses occasionnelles uniquement)
+    final roundsUp = !isRec &&
+        widget.rec == null &&
+        !(widget.expense?.isRec ?? false) &&
+        (store.settings.roundUp || (widget.expense?.roundUp ?? 0) > 0);
+    final v = _value;
+    final r = v == null ? 0.0 : AppStore.roundUpOf(v);
+    final String? roundPreview =
+        roundsUp && v != null && r > 0 ? 'Arrondi à ${eur0(v + r)} · +${eur(r)} mis de côté' : null;
+
     final amountField = Column(children: [
       if (!g) Text('Montant', style: t.ts(13, FontWeight.w600, t.muted)),
       IntrinsicWidth(
@@ -222,6 +232,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ),
         ),
       ),
+      if (roundPreview != null)
+        Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: g ? Colors.transparent : t.mintSoft,
+            borderRadius: BorderRadius.circular(999),
+            border: g ? Border.all(color: t.lineStrong) : null,
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Ico('piggy', size: 15, color: t.mint, stroke: 2),
+            const SizedBox(width: 6),
+            Text(roundPreview, style: t.ts(12, g ? FontWeight.w400 : FontWeight.w700, t.mint)),
+          ]),
+        ),
     ]);
 
     Widget fieldRow(String label, Widget child, {VoidCallback? onTap, bool last = false}) {

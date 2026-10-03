@@ -11,6 +11,7 @@ import '../widgets.dart';
 import 'account.dart';
 import 'budget.dart';
 import 'compare.dart';
+import 'roundup.dart';
 import 'forecast.dart';
 import 'shell.dart';
 
@@ -225,6 +226,7 @@ class HomeScreen extends StatelessWidget {
             ),
           budgetBtn,
         ]),
+        if (store.settings.roundUp || store.roundUpTotal > 0) const RoundUpCard(),
         Pressable(onTap: () => go(context, const ForecastScreen()), child: Sparkline(s, height: 90)),
         if (alerts.isNotEmpty) Callout(parts: alerts.first.parts, warn: true),
         upcoming,
@@ -337,6 +339,7 @@ class HomeScreen extends StatelessWidget {
       ]),
       account,
       hero,
+      if (store.settings.roundUp || store.roundUpTotal > 0) const RoundUpCard(),
       if (alerts.isNotEmpty) Callout(parts: alerts.first.parts, warn: true, icon: 'alert'),
       TwoUp(forecastCard, movedCard),
       upcoming,

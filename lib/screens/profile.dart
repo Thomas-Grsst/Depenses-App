@@ -11,6 +11,7 @@ import '../widgets.dart';
 import 'account.dart';
 import 'budget.dart';
 import 'categories.dart';
+import 'roundup.dart';
 import 'simulation.dart';
 import 'simulations.dart';
 
@@ -275,6 +276,10 @@ class ProfileScreen extends StatelessWidget {
             onTap: () => go(context, store.sims.isEmpty ? const SimulationScreen() : const SimulationsScreen())),
         SettingRow('Catégories', value: '${cats.length}', chevron: true, onTap: () => manageCategories(context)),
         SettingRow('Libellés', value: '${store.labels.length}', chevron: true, onTap: () => _labels(context)),
+        SettingRow('Arrondis à l’euro supérieur',
+            value: store.roundUpTotal > 0 ? '+${eur(store.roundUpTotal)}' : (st.roundUp ? 'Activé' : 'Désactivé'),
+            chevron: true,
+            onTap: () => showRoundUp(context)),
         SettingRow('Alertes intelligentes',
             trailing: Toggle(value: st.alerts, onChanged: (v) => set(() => st.alerts = v))),
         SettingRow('Détection des abonnements',

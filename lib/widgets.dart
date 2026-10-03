@@ -39,7 +39,16 @@ class ExpenseRow extends StatelessWidget {
               ]),
             )
           : null,
-      trailing: eur(e.amount),
+      trailing: e.roundUp > 0 ? null : eur(e.amount),
+      trailingWidget: e.roundUp > 0
+          ? Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(eur(e.amount), style: t.ts(15, t.graphite ? FontWeight.w400 : FontWeight.w700)),
+                Text('+${eur(e.roundUp)} arrondi', style: t.ts(11, t.wSemi, t.mint)),
+              ]),
+            )
+          : null,
       onTap: () => go(context, AddExpenseScreen(expense: e)),
     );
   }

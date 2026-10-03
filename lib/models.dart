@@ -49,6 +49,7 @@ class Expense {
   DateTime date;
   List<String> labels;
   String? recId;
+  double roundUp; // arrondi à l'euro supérieur mis de côté
 
   Expense({
     required this.id,
@@ -58,18 +59,20 @@ class Expense {
     required this.cat,
     List<String>? labels,
     this.recId,
+    this.roundUp = 0,
   }) : labels = labels ?? [];
 
   bool get isRec => recId != null;
 
   Map<String, dynamic> toJson() => {
         'id': id, 'name': name, 'amount': amount, 'date': _s(date), 'cat': cat,
-        'labels': labels, 'recId': recId,
+        'labels': labels, 'recId': recId, 'roundUp': roundUp,
       };
 
   factory Expense.fromJson(Map<String, dynamic> j) => Expense(
         id: j['id'], name: j['name'], amount: _n(j['amount']), date: _d(j['date']),
         cat: j['cat'], labels: List<String>.from(j['labels'] ?? const []), recId: j['recId'],
+        roundUp: _n(j['roundUp'] ?? 0),
       );
 }
 
@@ -230,7 +233,8 @@ class Settings {
   String themeMode; // light | dark | auto
   String style; // menthe | graphite
   String palette; // menthe | ocean | prune | terracotta
-  bool alerts, detection;
+  bool alerts, detection, roundUp;
+  double roundUpUsed; // arrondis déjà versés dans un objectif
   List<String> ignored;
 
   Settings({
@@ -245,6 +249,8 @@ class Settings {
     this.palette = 'menthe',
     this.alerts = true,
     this.detection = true,
+    this.roundUp = true,
+    this.roundUpUsed = 0,
     List<String>? ignored,
   })  : ignored = ignored ?? [],
         balanceSkip = balanceSkip ?? [];
@@ -253,7 +259,7 @@ class Settings {
         'name': name, 'income': income, 'payDay': payDay, 'balance': balance,
         'balanceDate': balanceDate == null ? null : _s(balanceDate!), 'balanceSkip': balanceSkip,
         'themeMode': themeMode, 'style': style, 'palette': palette,
-        'alerts': alerts, 'detection': detection, 'ignored': ignored,
+        'alerts': alerts, 'detection': detection, 'roundUp': roundUp, 'roundUpUsed': roundUpUsed, 'ignored': ignored,
       };
   factory Settings.fromJson(Map<String, dynamic> j) => Settings(
         name: j['name'] ?? '', income: _n(j['income'] ?? 0), payDay: (j['payDay'] as num?)?.toInt() ?? 1,
@@ -262,6 +268,7 @@ class Settings {
         balanceSkip: List<String>.from(j['balanceSkip'] ?? const []),
         themeMode: j['themeMode'] ?? 'auto',
         style: j['style'] ?? 'menthe', palette: j['palette'] ?? 'menthe', alerts: j['alerts'] ?? true,
-        detection: j['detection'] ?? true, ignored: List<String>.from(j['ignored'] ?? const []),
+        detection: j['detection'] ?? true, roundUp: j['roundUp'] ?? true,
+        roundUpUsed: _n(j['roundUpUsed'] ?? 0), ignored: List<String>.from(j['ignored'] ?? const []),
       );
 }

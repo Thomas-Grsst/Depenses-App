@@ -151,14 +151,22 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  /// Arrondi à l'euro supérieur : 8,37 € -> 0,63 € mis de côté (0 si le montant est rond).
+  static double roundUpOf(double amount) {
+    final c = (amount * 100).round();
+    return ((100 - c % 100) % 100) / 100;
+  }
+
   void addExpense(Expense e) {
     _learnLabels(e.labels);
+    if (settings.roundUp && !e.isRec) e.roundUp = roundUpOf(e.amount);
     expenses.add(e);
     commit();
   }
 
   void updateExpense(Expense e) {
     _learnLabels(e.labels);
+    if (e.roundUp > 0 || (settings.roundUp && !e.isRec)) e.roundUp = e.isRec ? 0 : roundUpOf(e.amount);
     commit();
   }
 
@@ -335,7 +343,7 @@ class AppStore extends ChangeNotifier {
     var b = settings.balance!;
     b += payDates(since.add(const Duration(days: 1)), day).length * settings.income;
     for (final e in expenses) {
-      if (_counts(e, since) && !e.date.isAfter(day)) b -= e.amount;
+      if (_counts(e, since) && !e.date.isAfter(day)) b -= e.amount + e.roundUp;
     }
     return b;
   }
@@ -347,7 +355,7 @@ class AppStore extends ChangeNotifier {
     final t = today;
     return inMonth(t.year, t.month)
         .where((e) => e.date.isAfter(t) && _counts(e, settings.balanceDate ?? t))
-        .fold(0.0, (a, e) => a + e.amount);
+        .fold(0.0, (a, e) => a + e.amount + e.roundUp);
   }
 
   /// Solde estimé au dernier jour du mois (prévision des dépenses + salaire s'il tombe d'ici là).
@@ -356,6 +364,21 @@ class AppStore extends ChangeNotifier {
     final t = today;
     final salary = payDates(t.add(const Duration(days: 1)), DateTime(s.y, s.m, s.dim)).length * settings.income;
     return balance + salary - (s.forecast - s.spent) - futureNoted;
+  }
+
+  // ---------- Arrondis ----------
+
+  double get roundUpTotal => expenses.fold(0.0, (a, e) => a + e.roundUp);
+  double roundUpMonth(int y, int m) => inMonth(y, m).fold(0.0, (a, e) => a + e.roundUp);
+  double get roundUpAvailable => max(0, roundUpTotal - settings.roundUpUsed);
+
+  /// Verse les arrondis disponibles dans un objectif d'épargne.
+  void moveRoundUpTo(Goal g) {
+    final v = roundUpAvailable;
+    if (v <= 0) return;
+    g.saved += v;
+    settings.roundUpUsed += v;
+    commit();
   }
 
   // ---------- Statistiques ----------
