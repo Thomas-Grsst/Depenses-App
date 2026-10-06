@@ -87,7 +87,9 @@ class AppStore extends ChangeNotifier {
         settings = Settings.fromJson(Map<String, dynamic>.from(j['settings'] ?? {}));
         expenses = [for (final e in j['expenses'] ?? []) Expense.fromJson(Map<String, dynamic>.from(e))];
         recs = [for (final e in j['recs'] ?? []) Recurrence.fromJson(Map<String, dynamic>.from(e))];
-        envelopes = {for (final e in (j['envelopes'] as Map? ?? {}).entries) e.key as String: (e.value as num).toDouble()};
+        envelopes = {
+          for (final e in (j['envelopes'] as Map? ?? {}).entries) e.key as String: (e.value as num).toDouble(),
+        };
         labelEnvs = [for (final e in j['labelEnvs'] ?? []) LabelEnvelope.fromJson(Map<String, dynamic>.from(e))];
         goals = [for (final e in j['goals'] ?? []) Goal.fromJson(Map<String, dynamic>.from(e))];
         sims = [for (final e in j['sims'] ?? []) Scenario.fromJson(Map<String, dynamic>.from(e))];
@@ -103,16 +105,16 @@ class AppStore extends ChangeNotifier {
   }
 
   String exportJson() => jsonEncode({
-        'settings': settings.toJson(),
-        'expenses': expenses.map((e) => e.toJson()).toList(),
-        'recs': recs.map((e) => e.toJson()).toList(),
-        'envelopes': envelopes,
-        'labelEnvs': labelEnvs.map((e) => e.toJson()).toList(),
-        'goals': goals.map((e) => e.toJson()).toList(),
-        'sims': sims.map((e) => e.toJson()).toList(),
-        'labels': labels,
-        'cats': customCats.map((c) => c.toJson()).toList(),
-      });
+    'settings': settings.toJson(),
+    'expenses': expenses.map((e) => e.toJson()).toList(),
+    'recs': recs.map((e) => e.toJson()).toList(),
+    'envelopes': envelopes,
+    'labelEnvs': labelEnvs.map((e) => e.toJson()).toList(),
+    'goals': goals.map((e) => e.toJson()).toList(),
+    'sims': sims.map((e) => e.toJson()).toList(),
+    'labels': labels,
+    'cats': customCats.map((c) => c.toJson()).toList(),
+  });
 
   void _persist() => _prefs?.setString(_key, exportJson());
 
@@ -131,8 +133,18 @@ class AppStore extends ChangeNotifier {
     for (final r in recs) {
       final from = r.lastGen == null ? r.start : r.lastGen!.add(const Duration(days: 1));
       for (final d in r.occurrences(from, t)) {
-        expenses.add(Expense(
-            id: newId(), name: r.name, amount: r.amount, date: d, cat: r.cat, labels: [...r.labels], recId: r.id));
+        expenses.add(
+          Expense(
+            id: newId(),
+            name: r.name,
+            amount: r.amount,
+            date: d,
+            cat: r.cat,
+            labels: [...r.labels],
+            recId: r.id,
+            roundUp: settings.roundUp ? roundUpOf(r.amount) : 0,
+          ),
+        );
         changed = true;
       }
       if (r.lastGen == null || r.lastGen!.isBefore(t)) {
@@ -159,14 +171,14 @@ class AppStore extends ChangeNotifier {
 
   void addExpense(Expense e) {
     _learnLabels(e.labels);
-    if (settings.roundUp && !e.isRec) e.roundUp = roundUpOf(e.amount);
+    if (settings.roundUp) e.roundUp = roundUpOf(e.amount);
     expenses.add(e);
     commit();
   }
 
   void updateExpense(Expense e) {
     _learnLabels(e.labels);
-    if (e.roundUp > 0 || (settings.roundUp && !e.isRec)) e.roundUp = e.isRec ? 0 : roundUpOf(e.amount);
+    if (e.roundUp > 0 || settings.roundUp) e.roundUp = roundUpOf(e.amount);
     commit();
   }
 
@@ -238,8 +250,13 @@ class AppStore extends ChangeNotifier {
 
   void resetAll() {
     final keep = Settings(
-        name: settings.name, income: settings.income, payDay: settings.payDay, style: settings.style,
-        themeMode: settings.themeMode, palette: settings.palette);
+      name: settings.name,
+      income: settings.income,
+      payDay: settings.payDay,
+      style: settings.style,
+      themeMode: settings.themeMode,
+      palette: settings.palette,
+    );
     settings = keep;
     expenses = [];
     recs = [];
@@ -252,8 +269,7 @@ class AppStore extends ChangeNotifier {
 
   // ---------- Requêtes ----------
 
-  List<Expense> inMonth(int y, int m) =>
-      expenses.where((e) => e.date.year == y && e.date.month == m).toList();
+  List<Expense> inMonth(int y, int m) => expenses.where((e) => e.date.year == y && e.date.month == m).toList();
 
   double get fixedMonthly => recs.fold(0.0, (a, r) => a + r.monthly);
   double get totalBudget => envelopes.values.fold(0.0, (a, v) => a + v);
@@ -275,7 +291,8 @@ class AppStore extends ChangeNotifier {
   }
 
   List<Expense> recent(int n) {
-    final l = [...expenses]..sort((a, b) {
+    final l = [...expenses]
+      ..sort((a, b) {
         final c = b.date.compareTo(a.date);
         return c != 0 ? c : b.id.compareTo(a.id);
       });
@@ -305,7 +322,10 @@ class AppStore extends ChangeNotifier {
     final t = today;
     settings.balance = amount;
     settings.balanceDate = t;
-    settings.balanceSkip = [for (final e in expenses) if (sameDay(e.date, t)) e.id];
+    settings.balanceSkip = [
+      for (final e in expenses)
+        if (sameDay(e.date, t)) e.id,
+    ];
     commit();
   }
 
@@ -363,7 +383,8 @@ class AppStore extends ChangeNotifier {
     final s = stats;
     final t = today;
     final salary = payDates(t.add(const Duration(days: 1)), DateTime(s.y, s.m, s.dim)).length * settings.income;
-    return balance + salary - (s.forecast - s.spent) - futureNoted;
+    final recRoundUps = settings.roundUp ? s.remainingRec.fold(0.0, (a, o) => a + roundUpOf(o.rec.amount)) : 0.0;
+    return balance + salary - (s.forecast - s.spent) - futureNoted - recRoundUps;
   }
 
   // ---------- Arrondis ----------
@@ -505,11 +526,13 @@ class AppStore extends ChangeNotifier {
       if (cs.budget <= 0) continue;
       final r = cs.spent / cs.budget;
       if (r >= 1) {
-        out.add(Alert(c.key, [
-          ('Budget ${c.name} dépassé : ', false),
-          ('${eurAuto(cs.spent)} sur ${eurAuto(cs.budget)}', true),
-          ('.', false),
-        ]));
+        out.add(
+          Alert(c.key, [
+            ('Budget ${c.name} dépassé : ', false),
+            ('${eurAuto(cs.spent)} sur ${eurAuto(cs.budget)}', true),
+            ('.', false),
+          ]),
+        );
         continue;
       }
       // Le rythme se juge sur les dépenses courantes : les charges fixes (loyer…) tombent en début de mois.
@@ -517,25 +540,31 @@ class AppStore extends ChangeNotifier {
       final variable = cs.budget - fixed;
       final pace = variable > 0 ? cs.occSpent / variable : 0.0;
       if (r >= 0.5 && pace >= 0.4 && pace > dayRatio + 0.15) {
-        out.add(Alert(c.key, [
-          ('Tu as déjà dépensé ', false),
-          (pct(r), true),
-          (' de ton budget ${c.name} et nous sommes seulement le ${s.day}.', false),
-        ]));
+        out.add(
+          Alert(c.key, [
+            ('Tu as déjà dépensé ', false),
+            (pct(r), true),
+            (' de ton budget ${c.name} et nous sommes seulement le ${s.day}.', false),
+          ]),
+        );
       } else if (cs.projected > cs.budget * 1.05 && s.day >= 5) {
-        out.add(Alert(c.key, [
-          ('À ce rythme, ton enveloppe ${c.name} dépasserait d’environ ', false),
-          (eur0(cs.projected - cs.budget), true),
-          (' d’ici la fin du mois.', false),
-        ]));
+        out.add(
+          Alert(c.key, [
+            ('À ce rythme, ton enveloppe ${c.name} dépasserait d’environ ', false),
+            (eur0(cs.projected - cs.budget), true),
+            (' d’ici la fin du mois.', false),
+          ]),
+        );
       }
     }
     if (s.budget > 0 && s.forecast > s.budget && out.isEmpty) {
-      out.add(Alert('aut', [
-        ('Au rythme actuel, tu dépasserais ton budget d’environ ', false),
-        (eur0(s.forecast - s.budget), true),
-        (' ce mois-ci.', false),
-      ]));
+      out.add(
+        Alert('aut', [
+          ('Au rythme actuel, tu dépasserais ton budget d’environ ', false),
+          (eur0(s.forecast - s.budget), true),
+          (' ce mois-ci.', false),
+        ]),
+      );
     }
     return out;
   }
@@ -564,14 +593,26 @@ class AppStore extends ChangeNotifier {
       }
       if (perMonth.values.any((n) => n > 1)) return;
       final similar = list
-          .where((e) =>
-              (e.amount - last.amount).abs() <= max(0.05, last.amount * 0.03) &&
-              (e.date.day - last.date.day).abs() <= 5)
+          .where(
+            (e) =>
+                (e.amount - last.amount).abs() <= max(0.05, last.amount * 0.03) &&
+                (e.date.day - last.date.day).abs() <= 5,
+          )
           .toList();
       final months = similar.map((e) => e.date.year * 12 + e.date.month).toSet();
       if (months.length < 2) return;
-      out.add(Suggestion(k, last.name, last.cat, last.amount, months.length, last.date, last.labels,
-          similar.map((e) => e.id).toList()));
+      out.add(
+        Suggestion(
+          k,
+          last.name,
+          last.cat,
+          last.amount,
+          months.length,
+          last.date,
+          last.labels,
+          similar.map((e) => e.id).toList(),
+        ),
+      );
     });
     out.sort((a, b) => b.months.compareTo(a.months));
     return out;
@@ -579,8 +620,15 @@ class AppStore extends ChangeNotifier {
 
   void acceptSuggestion(Suggestion s) {
     final r = Recurrence(
-        id: newId(), name: s.name, amount: s.amount, cat: s.cat, freq: 'month', start: s.last,
-        labels: [...s.labels], lastGen: today);
+      id: newId(),
+      name: s.name,
+      amount: s.amount,
+      cat: s.cat,
+      freq: 'month',
+      start: s.last,
+      labels: [...s.labels],
+      lastGen: today,
+    );
     recs.add(r);
     for (final e in expenses) {
       if (s.expenseIds.contains(e.id)) e.recId = r.id;
@@ -598,10 +646,16 @@ class AppStore extends ChangeNotifier {
     final l = [...expenses]..sort((a, b) => a.date.compareTo(b.date));
     for (final e in l) {
       String q(String s) => '"${s.replaceAll('"', '""')}"';
-      b.writeln([
-        dateKey(e.date), q(e.name), e.amount.toStringAsFixed(2).replaceAll('.', ','),
-        q(catOf(e.cat).name), q(e.labels.join(', ')), e.isRec ? 'oui' : 'non',
-      ].join(';'));
+      b.writeln(
+        [
+          dateKey(e.date),
+          q(e.name),
+          e.amount.toStringAsFixed(2).replaceAll('.', ','),
+          q(catOf(e.cat).name),
+          q(e.labels.join(', ')),
+          e.isRec ? 'oui' : 'non',
+        ].join(';'),
+      );
     }
     return b.toString();
   }
@@ -610,8 +664,7 @@ class AppStore extends ChangeNotifier {
 class StoreScope extends InheritedNotifier<AppStore> {
   const StoreScope({super.key, required AppStore store, required super.child}) : super(notifier: store);
 
-  static AppStore of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<StoreScope>()!.notifier!;
+  static AppStore of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<StoreScope>()!.notifier!;
 
   static AppStore read(BuildContext context) =>
       (context.getElementForInheritedWidgetOfExactType<StoreScope>()!.widget as StoreScope).notifier!;
